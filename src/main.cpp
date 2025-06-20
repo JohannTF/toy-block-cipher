@@ -70,6 +70,19 @@ string cbcToBase64(const bitset<16>& iv, const vector<bitset<16>>& blocks) {
     return base64_encode(binaryData);
 }
 
+// Convertir solo bloques a Base64 (para CBC sin IV)
+string blocksToBase64CBC(const vector<bitset<16>>& blocks) {
+    string binaryData;
+    
+    for (const auto& block : blocks) {
+        uint16_t value = static_cast<uint16_t>(block.to_ulong());
+        binaryData += static_cast<char>((value >> 8) & 0xFF);
+        binaryData += static_cast<char>(value & 0xFF);
+    }
+    
+    return base64_encode(binaryData);
+}
+
 // Convertir Base64 a IV y bloques (para CBC)
 pair<bitset<16>, vector<bitset<16>>> base64ToCBC(const string& base64Data) {
     string decodedData = base64_decode(base64Data);
@@ -144,7 +157,6 @@ string bitsetToHex(const bitset<16>& bits) {
 string getTextInput(const string& prompt) {
     string text;
     cout << prompt;
-    cin.ignore();
     getline(cin, text);
     return text;
 }
@@ -169,6 +181,31 @@ string getBase64InputCBC() {
     }
     
     return base64Text;
+}
+
+// Obtener IV del usuario para descifrado CBC
+bitset<16> getIVInput() {
+    string ivText = getTextInput("\nIngrese el vector de inicializacion (IV) en hexadecimal (ej: 0x1A2B): ");
+    
+    if (ivText.empty()) {
+        throw invalid_argument("El IV no puede estar vacio");
+    }
+    
+    // Remover el prefijo "0x" si está presente
+    if (ivText.length() >= 2 && ivText.substr(0, 2) == "0x") {
+        ivText = ivText.substr(2);
+    }
+    
+    // Convertir de hexadecimal a uint16_t
+    try {
+        unsigned long ivValue = stoul(ivText, nullptr, 16);
+        if (ivValue > UINT16_MAX) {
+            throw invalid_argument("El IV debe ser un valor de 16 bits (0x0000 - 0xFFFF)");
+        }
+        return bitset<16>(static_cast<uint16_t>(ivValue));
+    } catch (const invalid_argument& e) {
+        throw invalid_argument("Formato de IV invalido. Use formato hexadecimal (ej: 1A2B o 0x1A2B)");
+    }
 }
 
 // Mostrar resultado
@@ -204,6 +241,7 @@ void showOperationMenu(const string& mode) {
 // Procesar cifrado ECB
 void processECBEncryption(SimpleCipher& cipher) {
     try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
         string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
         
         if (plaintext.empty()) {
@@ -226,6 +264,7 @@ void processECBEncryption(SimpleCipher& cipher) {
 // Procesar descifrado ECB
 void processECBDecryption(SimpleCipher& cipher) {
     try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
         string base64Text = getBase64InputECB();
         
         vector<bitset<16>> cipherBlocks = base64ToBlocks(base64Text);
@@ -243,6 +282,7 @@ void processECBDecryption(SimpleCipher& cipher) {
 // Procesar cifrado CBC
 void processCBCEncryption(CBCCipher& cipher) {
     try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
         string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
         
         if (plaintext.empty()) {
@@ -252,7 +292,7 @@ void processCBCEncryption(CBCCipher& cipher) {
         
         vector<bitset<16>> textBlocks = stringToBlocks(plaintext);
         auto [iv, cipherBlocks] = cipher.encryptCBC(textBlocks);
-        string base64Result = cbcToBase64(iv, cipherBlocks);
+        string base64Result = blocksToBase64CBC(cipherBlocks);
         
         displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
         displayResult("IV GENERADO", bitsetToHex(iv));
@@ -266,14 +306,16 @@ void processCBCEncryption(CBCCipher& cipher) {
 // Procesar descifrado CBC
 void processCBCDecryption(CBCCipher& cipher) {
     try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
+        bitset<16> iv = getIVInput();
         string base64Text = getBase64InputCBC();
         
-        auto [iv, cipherBlocks] = base64ToCBC(base64Text);
+        vector<bitset<16>> cipherBlocks = base64ToBlocks(base64Text);
         vector<bitset<16>> plainBlocks = cipher.decryptCBC(iv, cipherBlocks);
         string decryptedText = blocksToString(plainBlocks);
         
+        displayResult("IV UTILIZADO", bitsetToHex(iv));
         displayResult("MENSAJE CIFRADO CBC (BASE64)", base64Text);
-        displayResult("IV EXTRAIDO", bitsetToHex(iv));
         displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
         
     } catch (const exception& e) {

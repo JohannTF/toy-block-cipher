@@ -6,7 +6,7 @@
 #include <vector>
 #include <bitset>
 #include <random>
-#include <chrono>
+#include <openssl/rand.h>
 #include "SimpleCipher.cpp"
 
 using namespace std;
@@ -17,10 +17,22 @@ private:
 
     // Generar IV aleatorio de 16 bits
     bitset<16> generateRandomIV() {
-        random_device rd;
-        mt19937 gen(rd());
-        uniform_int_distribution<uint16_t> dis(0, UINT16_MAX);
-        return bitset<16>(dis(gen));
+        unsigned char randomBytes[2]; // 2 bytes = 16 bits
+        
+        // Generar bytes aleatorios
+        if (RAND_bytes(randomBytes, 2) != 1) {
+            // Si falla, usar fallback con random_device
+            random_device rd;
+            mt19937 gen(rd());
+            uniform_int_distribution<uint16_t> dis(0, UINT16_MAX);
+            return bitset<16>(dis(gen));
+        }
+        
+        // Convertir los 2 bytes a uint16_t
+        uint16_t randomValue = (static_cast<uint16_t>(randomBytes[0]) << 8) | 
+                               static_cast<uint16_t>(randomBytes[1]);
+        
+        return bitset<16>(randomValue);
     }
 
 public:
