@@ -168,3 +168,14 @@ public:
 };
 
 #endif
+
+// int main() {
+//     system("chcp 65001 > nul");
+//     int numRounds = 5;
+    
+//     KeySchedule ks(numRounds);
+//     ks.showAllKeys();
+//     ks.showInverseKeys();
+    
+//     return 0;
+// }

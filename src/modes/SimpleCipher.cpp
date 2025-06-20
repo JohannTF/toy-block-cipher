@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 #include <bitset>
-#include "../CryptoUtils.h"
+#include "../utils/CryptoUtils.h"
 #include "../SBox.h"
 #include "../Permutation.h"
 #include "../KeySchedule.h"

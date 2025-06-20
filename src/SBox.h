@@ -171,3 +171,64 @@ public:
 };
 
 #endif
+
+
+// int main() {
+//     cout << "=== PRUEBA DE LA CLASE SUBSTITUTION BOX ===" << "\n";
+    
+//     try {
+//         // Crear una instancia de SBox para GF(2^4)
+//         SBox sbox(4);
+        
+//         cout << "\nProbando transformación S-box individual:" << "\n";
+//         cout << "===========================================" << "\n";
+//         vector<unsigned int> testValues = {0, 1, 5, 10, 15};
+//         for (unsigned int val : testValues) {
+//             unsigned int sboxResult = sbox.applySBox(val);
+//             unsigned int inverseResult = sbox.applyInverseSBox(sboxResult);
+
+//             cout << "Original: 0x" << toHexadecimal(val) 
+//                  << " -> S-box: 0x" << toHexadecimal(sboxResult)
+//                  << " -> Inversa: 0x" << toHexadecimal(inverseResult)
+//                  << "\n";
+//         }
+        
+
+//         cout << "\nProbando transformación de vectores:" << "\n";
+//         cout << "=======================================" << "\n";
+//         vector<unsigned int> inputVector = {0x1, 0x2, 0x3, 0x4, 0x5, 0x6};
+//         cout << setw(15) << "Original: ";
+//         for (auto val : inputVector) {
+//             cout << "0x" << toHexadecimal(val) << " ";
+//         }
+//         cout << "\n";
+
+        
+//         // Aplicar S-box al vector
+//         auto sboxVector = sbox.applySBoxToVector(inputVector);
+//         cout << setw(15) << "S-box: ";
+//         for (auto val : sboxVector) {
+//             cout << "0x" << toHexadecimal(val) << " ";
+//         }
+//         cout << "\n";
+
+//         // Aplicar S-box inversa
+//         auto recoveredVector = sbox.applyInverseSBoxToVector(sboxVector);
+//         cout << setw(15) << "S-box inversa: ";
+//         for (auto val : recoveredVector) {
+//             cout << "0x" << toHexadecimal(val) << " ";
+//         }
+//         cout << "\n";
+        
+
+//         // Mostrar tablas de S-box
+//         sbox.printSBoxTable();
+//         sbox.printInverseSBoxTable();
+
+//     } catch (const exception& e) {
+//         cout << "Error: " << e.what() << "\n";
+//         return 1;
+//     }
+    
+//     return 0;
+// }

@@ -110,3 +110,47 @@ public:
 };
 
 #endif
+
+// int main() {
+//     cout << "=== PRUEBA PERMUTACIÓN ===" << "\n";
+    
+//     try {
+//         // Crear instancia de la permutación optimizada
+//         Permutation perm;
+        
+//         // Mostrar las arrays de permutación
+//         perm.printPermutationArray();
+//         perm.printInversePermutationArray();
+
+        
+//         cout << "\nPrueba con consultas especificas:" << "\n";
+//         cout << "=================================" << "\n"; 
+//         // Probar algunas consultas específicas
+//         vector<int> testPositions = {0, 1, 5, 10, 15};
+//         for (int pos : testPositions) {
+//             int permuted = perm.getPermutedPosition(pos);
+//             int recovered = perm.getOriginalPosition(permuted);
+//             cout << "P[" << pos << "] = " << permuted << "\n";
+//         }
+        
+
+//         cout << "\nPrueba con bitsets de 16 bits:" << "\n";
+//         cout << "=================================" << "\n";
+//         // Crear algunos patrones de prueba
+//         string pattern = "1001011010110100";
+//         bitset<16> original(pattern);
+//         bitset<16> permuted = perm.applyPermutation(original);
+//         bitset<16> recovered = perm.applyInversePermutation(permuted);
+//         cout << setw(18) << "Patrón original: " << original << "\n";
+//         cout << setw(18) << "Permutado: " << permuted << "\n";
+//         cout << setw(18) << "Recuperado: " << recovered << "\n";
+//         cout << "\n";
+
+        
+//     } catch (const exception& e) {
+//         cout << "Error durante la ejecución: " << e.what() << "\n";
+//         return 1;
+//     }
+
+//     return 0;
+// }
