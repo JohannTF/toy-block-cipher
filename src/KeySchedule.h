@@ -62,6 +62,12 @@ public:
         generateRoundKeys();
         generateInverseRoundKeys();
     }
+    
+    // Copy constructor
+    KeySchedule(const KeySchedule& other) : masterKey(other.masterKey), numRounds(other.numRounds) {
+        roundKeys = other.roundKeys;
+        inverseRoundKeys = other.inverseRoundKeys;
+    }
 
     // Precomputar las llaves para cada ronda
     void generateRoundKeys() {
@@ -146,14 +152,17 @@ public:
             throw out_of_range("Round number out of range");
         }
         return roundKeys[round - 1];
-    }
-
-    // Obtener clave inversa de ronda (si está precomputada)
+    }    // Obtener clave inversa de ronda (si está precomputada)
     uint16_t getInverseRoundKey(int round) {
         if(round < 1 || round > inverseRoundKeys.size()) {
             throw out_of_range("Round number out of range");
         }
         return inverseRoundKeys[round - 1];
+    }
+
+    // Obtener la clave maestra
+    uint16_t getMasterKey() const {
+        return masterKey;
     }
 
 };

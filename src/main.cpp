@@ -146,6 +146,17 @@ vector<bitset<16>> base64ToBlocks(const string& base64Data) {
     return blocks;
 }
 
+// Convertir bitset a Base64
+string bitsetToBase64(const bitset<16>& bits) {
+    uint16_t value = static_cast<uint16_t>(bits.to_ulong());
+    unsigned char bytes[2];
+    bytes[0] = (value >> 8) & 0xFF;
+    bytes[1] = value & 0xFF;
+    
+    string binaryData(reinterpret_cast<char*>(bytes), 2);
+    return base64_encode(binaryData);
+}
+
 // Convertir bitset a hexadecimal
 string bitsetToHex(const bitset<16>& bits) {
     stringstream ss;
@@ -159,6 +170,17 @@ string getTextInput(const string& prompt) {
     cout << prompt;
     getline(cin, text);
     return text;
+}
+
+// Obtener clave maestra del usuario para descifrado
+string getMasterKeyInput() {
+    string keyText = getTextInput("\nIngrese la clave maestra en Base64: ");
+    
+    if (keyText.empty()) {
+        throw invalid_argument("La clave no puede estar vacia");
+    }
+    
+    return keyText;
 }
 
 // Validar y obtener entrada Base64 para ECB
@@ -183,28 +205,27 @@ string getBase64InputCBC() {
     return base64Text;
 }
 
-// Obtener IV del usuario para descifrado CBC
+// Obtener IV del usuario para descifrado CBC en Base64
 bitset<16> getIVInput() {
-    string ivText = getTextInput("\nIngrese el vector de inicializacion (IV) en hexadecimal (ej: 0x1A2B): ");
+    string ivText = getTextInput("\nIngrese el vector de inicializacion (IV) en Base64: ");
     
     if (ivText.empty()) {
         throw invalid_argument("El IV no puede estar vacio");
     }
     
-    // Remover el prefijo "0x" si está presente
-    if (ivText.length() >= 2 && ivText.substr(0, 2) == "0x") {
-        ivText = ivText.substr(2);
-    }
-    
-    // Convertir de hexadecimal a uint16_t
     try {
-        unsigned long ivValue = stoul(ivText, nullptr, 16);
-        if (ivValue > UINT16_MAX) {
-            throw invalid_argument("El IV debe ser un valor de 16 bits (0x0000 - 0xFFFF)");
+        string decodedData = base64_decode(ivText);
+        
+        if (decodedData.length() < 2) {
+            throw invalid_argument("IV Base64 invalido: datos insuficientes");
         }
-        return bitset<16>(static_cast<uint16_t>(ivValue));
-    } catch (const invalid_argument& e) {
-        throw invalid_argument("Formato de IV invalido. Use formato hexadecimal (ej: 1A2B o 0x1A2B)");
+        
+        uint16_t ivValue = (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[0])) << 8) |
+                           static_cast<uint16_t>(static_cast<unsigned char>(decodedData[1]));
+        
+        return bitset<16>(ivValue);
+    } catch (const exception& e) {
+        throw invalid_argument("Formato de IV invalido. Use formato Base64 valido");
     }
 }
 
@@ -239,7 +260,7 @@ void showOperationMenu(const string& mode) {
 }
 
 // Procesar cifrado ECB
-void processECBEncryption(SimpleCipher& cipher) {
+void processECBEncryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
         string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
@@ -249,11 +270,16 @@ void processECBEncryption(SimpleCipher& cipher) {
             return;
         }
         
+        // Crear nueva instancia para generar clave aleatoria fresca
+        SimpleCipher cipher;
+        
         vector<bitset<16>> textBlocks = stringToBlocks(plaintext);
         vector<bitset<16>> cipherBlocks = cipher.encryptMessage(textBlocks);
         string base64Result = blocksToBase64(cipherBlocks);
+        string masterKeyBase64 = cipher.getMasterKeyBase64();
         
         displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
+        displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
         displayResult("MENSAJE CIFRADO ECB (BASE64)", base64Result);
         
     } catch (const exception& e) {
@@ -262,15 +288,21 @@ void processECBEncryption(SimpleCipher& cipher) {
 }
 
 // Procesar descifrado ECB
-void processECBDecryption(SimpleCipher& cipher) {
+void processECBDecryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
+        string masterKeyBase64 = getMasterKeyInput();
         string base64Text = getBase64InputECB();
+        
+        // Crear cipher con la clave proporcionada
+        SimpleCipher cipher;
+        cipher.setMasterKeyFromBase64(masterKeyBase64);
         
         vector<bitset<16>> cipherBlocks = base64ToBlocks(base64Text);
         vector<bitset<16>> plainBlocks = cipher.decryptMessage(cipherBlocks);
         string decryptedText = blocksToString(plainBlocks);
         
+        displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
         displayResult("MENSAJE CIFRADO ECB (BASE64)", base64Text);
         displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
         
@@ -280,7 +312,7 @@ void processECBDecryption(SimpleCipher& cipher) {
 }
 
 // Procesar cifrado CBC
-void processCBCEncryption(CBCCipher& cipher) {
+void processCBCEncryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
         string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
@@ -290,12 +322,18 @@ void processCBCEncryption(CBCCipher& cipher) {
             return;
         }
         
+        // Crear nueva instancia para generar clave aleatoria fresca
+        CBCCipher cipher;
+        
         vector<bitset<16>> textBlocks = stringToBlocks(plaintext);
         auto [iv, cipherBlocks] = cipher.encryptCBC(textBlocks);
         string base64Result = blocksToBase64CBC(cipherBlocks);
+        string masterKeyBase64 = cipher.getMasterKeyBase64();
+        string ivBase64 = bitsetToBase64(iv);
         
         displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
-        displayResult("IV GENERADO", bitsetToHex(iv));
+        displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
+        displayResult("IV GENERADO (BASE64)", ivBase64);
         displayResult("MENSAJE CIFRADO CBC (BASE64)", base64Result);
         
     } catch (const exception& e) {
@@ -304,17 +342,24 @@ void processCBCEncryption(CBCCipher& cipher) {
 }
 
 // Procesar descifrado CBC
-void processCBCDecryption(CBCCipher& cipher) {
+void processCBCDecryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
+        string masterKeyBase64 = getMasterKeyInput();
         bitset<16> iv = getIVInput();
         string base64Text = getBase64InputCBC();
+        
+        // Crear cipher con la clave proporcionada
+        CBCCipher cipher;
+        cipher.setMasterKeyFromBase64(masterKeyBase64);
         
         vector<bitset<16>> cipherBlocks = base64ToBlocks(base64Text);
         vector<bitset<16>> plainBlocks = cipher.decryptCBC(iv, cipherBlocks);
         string decryptedText = blocksToString(plainBlocks);
+        string ivBase64 = bitsetToBase64(iv);
         
-        displayResult("IV UTILIZADO", bitsetToHex(iv));
+        displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
+        displayResult("IV UTILIZADO (BASE64)", ivBase64);
         displayResult("MENSAJE CIFRADO CBC (BASE64)", base64Text);
         displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
         
@@ -325,8 +370,6 @@ void processCBCDecryption(CBCCipher& cipher) {
 
 int main() {
     try {
-        SimpleCipher ecbCipher;
-        CBCCipher cbcCipher;
         string mainChoice, opChoice;
         
         while (true) {
@@ -338,13 +381,12 @@ int main() {
                 while (true) {
                     showOperationMenu("ECB");
                     cin >> opChoice;
-                    
                     if (opChoice == "1") {
-                        processECBEncryption(ecbCipher);
+                        processECBEncryption();
                     } 
                     else if (opChoice == "2") {
-                        processECBDecryption(ecbCipher);
-                    } 
+                        processECBDecryption();
+                    }
                     else if (opChoice == "3") {
                         break;
                     } 
@@ -358,13 +400,12 @@ int main() {
                 while (true) {
                     showOperationMenu("CBC");
                     cin >> opChoice;
-                    
                     if (opChoice == "1") {
-                        processCBCEncryption(cbcCipher);
+                        processCBCEncryption();
                     } 
                     else if (opChoice == "2") {
-                        processCBCDecryption(cbcCipher);
-                    } 
+                        processCBCDecryption();
+                    }
                     else if (opChoice == "3") {
                         break;
                     } 

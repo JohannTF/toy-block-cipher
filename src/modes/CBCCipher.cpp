@@ -37,6 +37,16 @@ private:
 
 public:
     CBCCipher() {}
+    
+    // Obtener la clave maestra en formato Base64
+    string getMasterKeyBase64() const {
+        return cipher.getMasterKeyBase64();
+    }
+    
+    // Configurar nueva clave desde Base64
+    void setMasterKeyFromBase64(const string& base64Key) {
+        cipher.setMasterKeyFromBase64(base64Key);
+    }
 
     // Cifrar en modo CBC
     pair<bitset<16>, vector<bitset<16>>> encryptCBC(const vector<bitset<16>>& plaintext) {
