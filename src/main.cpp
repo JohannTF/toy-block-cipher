@@ -5,133 +5,21 @@
 #include <iomanip>
 #include <algorithm>
 #include <sstream>
-#include "CryptoUtils.cpp"
-#include "SBox.cpp"
-#include "Permutation.cpp"
-#include "keySchedule.cpp"
-#include "base/base64.h"
+#include "modes/SimpleCipher.cpp"
+#include "modes/CBCCipher.cpp"
+#include "base/base64.cpp"
 
 using namespace std;
 
-class SimpleCipher {
-private:
-    SBox sbox;
-    Permutation permutation;
-    KeySchedule keySchedule;
-    static const int NUM_ROUNDS = 5;
-
-public:
-    // Constructor
-    SimpleCipher() : sbox(4), keySchedule(NUM_ROUNDS) {
-        cout << "Inciando..." << "\n";
-    }    
-    
-    // Cifrar un bloque de 16 bits
-    bitset<16> encryptBlock(const bitset<16>& plaintext) {
-        bitset<16> state = plaintext;
-        
-        for (int round = 1; round <= NUM_ROUNDS; round++) {
-            // Paso 1: XOR con clave de ronda
-            uint16_t roundKey = keySchedule.getRoundKey(round);
-            bitset<16> keyBits(roundKey);
-            state ^= keyBits;
-            
-            // Paso 2: Aplicar S-box a cada nibble de 4 bits
-            vector<unsigned int> nibbles;
-            for (int i = 0; i < 4; i++) {
-                bitset<4> nibble = CryptoUtils::separateBitsReverse(state, i * 4);
-                unsigned int nibbleValue = static_cast<unsigned int>(nibble.to_ulong());
-                unsigned int sboxResult = sbox.applySBox(nibbleValue);
-                nibbles.push_back(sboxResult);
-            }
-            
-            state = CryptoUtils::construirBitset(nibbles);
-            
-            // Paso 3: Aplicar permutación
-            state = permutation.applyPermutation(state);
-        }
-        
-        return state;
-    }
-
-    // Descifrar un bloque de 16 bits
-    bitset<16> decryptBlock(const bitset<16>& ciphertext) {
-        bitset<16> state = ciphertext;
-        
-        for (int round = NUM_ROUNDS; round >= 1; round--) {
-            // Paso 1: Aplicar permutación inversa
-            state = permutation.applyInversePermutation(state);
-            
-            // Paso 2: Aplicar S-box inversa a cada nibble
-            vector<unsigned int> nibbles;
-            for (int i = 0; i < 4; i++) {
-                bitset<4> nibble = CryptoUtils::separateBitsReverse(state, i * 4);
-                unsigned int nibbleValue = static_cast<unsigned int>(nibble.to_ulong());
-                unsigned int inverseSboxResult = sbox.applyInverseSBox(nibbleValue);
-                nibbles.push_back(inverseSboxResult);
-            }
-            
-            state = CryptoUtils::construirBitset(nibbles);
-            
-            // Paso 3: XOR con clave de ronda
-            uint16_t roundKey = keySchedule.getRoundKey(round);
-            bitset<16> keyBits(roundKey);
-            state ^= keyBits;
-        }
-        
-        return state;
-    }
-
-    // Cifrar mensaje completo (múltiples bloques)
-    vector<bitset<16>> encryptMessage(const vector<bitset<16>>& message) {
-        vector<bitset<16>> ciphertext;
-        
-        for (size_t i = 0; i < message.size(); i++) {
-            bitset<16> encryptedBlock = encryptBlock(message[i]);
-            ciphertext.push_back(encryptedBlock);
-        }
-        
-        return ciphertext;
-    }
-
-    // Descifrar mensaje completo
-    vector<bitset<16>> decryptMessage(const vector<bitset<16>>& ciphertext) {
-        vector<bitset<16>> plaintext;
-        
-        for (size_t i = 0; i < ciphertext.size(); i++) {
-            bitset<16> decryptedBlock = decryptBlock(ciphertext[i]);
-            plaintext.push_back(decryptedBlock);
-        }
-        
-        return plaintext;
-    }
-
-};
-
-// Función para convertir string hexadecimal a bitset
-bitset<16> hexStringToBitset(const string& hexStr) {
-    unsigned long value = stoul(hexStr, nullptr, 16);
-    return bitset<16>(value);
-}
-
-// Función para convertir bitset a string hexadecimal
-string bitsetToHexString(const bitset<16>& bits) {
-    stringstream ss;
-    ss << hex << uppercase << setfill('0') << setw(4) << bits.to_ulong();
-    return ss.str();
-}
-
-// Función para convertir string de texto a bloques de 16 bits
+// Convertir texto a bloques de 16 bits
 vector<bitset<16>> stringToBlocks(const string& text) {
     vector<bitset<16>> blocks;
     
     for (size_t i = 0; i < text.length(); i += 2) {
         uint16_t blockValue = 0;
         
-        // Primer carácter (byte alto)
         blockValue |= (static_cast<uint16_t>(text[i]) << 8);
         
-        // Segundo carácter (byte bajo), si existe
         if (i + 1 < text.length()) {
             blockValue |= static_cast<uint16_t>(text[i + 1]);
         }
@@ -142,22 +30,20 @@ vector<bitset<16>> stringToBlocks(const string& text) {
     return blocks;
 }
 
-// Función para convertir bloques de 16 bits a string de texto
+// Convertir bloques de 16 bits a texto
 string blocksToString(const vector<bitset<16>>& blocks) {
     string result;
     
     for (const auto& block : blocks) {
         uint16_t value = static_cast<uint16_t>(block.to_ulong());
         
-        // Extraer byte alto (primer carácter)
         char highByte = static_cast<char>((value >> 8) & 0xFF);
-        if (highByte != 0) {  // Solo agregar si no es carácter nulo
+        if (highByte != 0) {
             result += highByte;
         }
         
-        // Extraer byte bajo (segundo carácter)
         char lowByte = static_cast<char>(value & 0xFF);
-        if (lowByte != 0) {  // Solo agregar si no es carácter nulo
+        if (lowByte != 0) {
             result += lowByte;
         }
     }
@@ -165,23 +51,69 @@ string blocksToString(const vector<bitset<16>>& blocks) {
     return result;
 }
 
-// Función para convertir bloques cifrados a Base64
-string blocksToBase64(const vector<bitset<16>>& blocks) {
+// Convertir IV y bloques a Base64 (para CBC)
+string cbcToBase64(const bitset<16>& iv, const vector<bitset<16>>& blocks) {
     string binaryData;
     
+    // Agregar IV al inicio
+    uint16_t ivValue = static_cast<uint16_t>(iv.to_ulong());
+    binaryData += static_cast<char>((ivValue >> 8) & 0xFF);
+    binaryData += static_cast<char>(ivValue & 0xFF);
+    
+    // Agregar bloques cifrados
     for (const auto& block : blocks) {
         uint16_t value = static_cast<uint16_t>(block.to_ulong());
-        
-        // Agregar byte alto
         binaryData += static_cast<char>((value >> 8) & 0xFF);
-        // Agregar byte bajo
         binaryData += static_cast<char>(value & 0xFF);
     }
     
     return base64_encode(binaryData);
 }
 
-// Función para convertir Base64 a bloques de 16 bits
+// Convertir Base64 a IV y bloques (para CBC)
+pair<bitset<16>, vector<bitset<16>>> base64ToCBC(const string& base64Data) {
+    string decodedData = base64_decode(base64Data);
+    
+    if (decodedData.length() < 2) {
+        throw invalid_argument("Datos insuficientes para extraer IV");
+    }
+    
+    // Extraer IV (primeros 2 bytes)
+    uint16_t ivValue = (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[0])) << 8) |
+                       static_cast<uint16_t>(static_cast<unsigned char>(decodedData[1]));
+    bitset<16> iv(ivValue);
+    
+    // Extraer bloques restantes
+    vector<bitset<16>> blocks;
+    for (size_t i = 2; i < decodedData.length(); i += 2) {
+        uint16_t blockValue = 0;
+        
+        blockValue |= (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i])) << 8);
+        
+        if (i + 1 < decodedData.length()) {
+            blockValue |= static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i + 1]));
+        }
+        
+        blocks.push_back(bitset<16>(blockValue));
+    }
+    
+    return {iv, blocks};
+}
+
+// Convertir bloques a Base64 (para ECB)
+string blocksToBase64(const vector<bitset<16>>& blocks) {
+    string binaryData;
+    
+    for (const auto& block : blocks) {
+        uint16_t value = static_cast<uint16_t>(block.to_ulong());
+        binaryData += static_cast<char>((value >> 8) & 0xFF);
+        binaryData += static_cast<char>(value & 0xFF);
+    }
+    
+    return base64_encode(binaryData);
+}
+
+// Convertir Base64 a bloques (para ECB)
 vector<bitset<16>> base64ToBlocks(const string& base64Data) {
     vector<bitset<16>> blocks;
     string decodedData = base64_decode(base64Data);
@@ -189,10 +121,8 @@ vector<bitset<16>> base64ToBlocks(const string& base64Data) {
     for (size_t i = 0; i < decodedData.length(); i += 2) {
         uint16_t blockValue = 0;
         
-        // Primer byte (byte alto)
         blockValue |= (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i])) << 8);
         
-        // Segundo byte (byte bajo), si existe
         if (i + 1 < decodedData.length()) {
             blockValue |= static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i + 1]));
         }
@@ -203,102 +133,215 @@ vector<bitset<16>> base64ToBlocks(const string& base64Data) {
     return blocks;
 }
 
-// Función para obtener mensaje de texto del usuario
-vector<bitset<16>> getUserTextMessage() {
-    string text;
-    
-    cout << "\nIngresa tu mensaje: ";
-    cin.ignore(); // Limpiar buffer
-    getline(cin, text);
-    
-    if (text.empty()) {
-        cout << "Error: El mensaje no puede estar vacío." << "\n";
-        return vector<bitset<16>>();
-    }
-    
-    return stringToBlocks(text);
+// Convertir bitset a hexadecimal
+string bitsetToHex(const bitset<16>& bits) {
+    stringstream ss;
+    ss << "0x" << hex << uppercase << setfill('0') << setw(4) << bits.to_ulong();
+    return ss.str();
 }
 
-// Función para obtener datos Base64 del usuario (para descifrar)
-vector<bitset<16>> getUserBase64Message() {
-    string base64Text;
-    
-    cout << "\nIngresa el mensaje cifrado en Base64: ";
-    cin.ignore(); // Limpiar buffer
-    getline(cin, base64Text);
+// Obtener mensaje de texto del usuario
+string getTextInput(const string& prompt) {
+    string text;
+    cout << prompt;
+    cin.ignore();
+    getline(cin, text);
+    return text;
+}
+
+// Validar y obtener entrada Base64 para ECB
+string getBase64InputECB() {
+    string base64Text = getTextInput("\nIngrese el mensaje cifrado en Base64 (ECB): ");
     
     if (base64Text.empty()) {
-        cout << "Error: El mensaje no puede estar vacío." << "\n";
-        return vector<bitset<16>>();
+        throw invalid_argument("El mensaje no puede estar vacio");
     }
     
+    return base64Text;
+}
+
+// Validar y obtener entrada Base64 para CBC
+string getBase64InputCBC() {
+    string base64Text = getTextInput("\nIngrese el mensaje cifrado en Base64 (CBC): ");
+    
+    if (base64Text.empty()) {
+        throw invalid_argument("El mensaje no puede estar vacio");
+    }
+    
+    return base64Text;
+}
+
+// Mostrar resultado
+void displayResult(const string& title, const string& content) {
+    cout << "\n=== " << title << " ===" << endl;
+    cout << content << endl;
+}
+
+// Mostrar menu principal
+void showMainMenu() {
+    cout << "\n========================================" << endl;
+    cout << "         CIFRADOR SP-NETWORK           " << endl;
+    cout << "========================================" << endl;
+    cout << "1. Modo ECB (Electronic Codebook)" << endl;
+    cout << "2. Modo CBC (Cipher Block Chaining)" << endl;
+    cout << "3. Salir" << endl;
+    cout << "----------------------------------------" << endl;
+    cout << "Seleccione el modo de operacion: ";
+}
+
+// Mostrar menu de operaciones
+void showOperationMenu(const string& mode) {
+    cout << "\n================================" << endl;
+    cout << "        MODO " << mode << endl;
+    cout << "================================" << endl;
+    cout << "1. Cifrar mensaje" << endl;
+    cout << "2. Descifrar mensaje" << endl;
+    cout << "3. Volver al menu principal" << endl;
+    cout << "--------------------------------" << endl;
+    cout << "Seleccione una opcion: ";
+}
+
+// Procesar cifrado ECB
+void processECBEncryption(SimpleCipher& cipher) {
     try {
-        return base64ToBlocks(base64Text);
+        string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
+        
+        if (plaintext.empty()) {
+            cout << "\nError: El mensaje no puede estar vacio." << endl;
+            return;
+        }
+        
+        vector<bitset<16>> textBlocks = stringToBlocks(plaintext);
+        vector<bitset<16>> cipherBlocks = cipher.encryptMessage(textBlocks);
+        string base64Result = blocksToBase64(cipherBlocks);
+        
+        displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
+        displayResult("MENSAJE CIFRADO ECB (BASE64)", base64Result);
+        
     } catch (const exception& e) {
-        cout << "Error: Formato Base64 inválido." << "\n";
-        return vector<bitset<16>>();
+        cout << "\nError durante el cifrado ECB: " << e.what() << endl;
     }
 }
 
-// Función para mostrar mensaje de texto
-void displayTextMessage(const vector<bitset<16>>& message, const string& title) {
-    cout << "\n=== " << title << " ===" << "\n";
-    string textResult = blocksToString(message);
-    cout << "\"" << textResult << "\"" << "\n";
+// Procesar descifrado ECB
+void processECBDecryption(SimpleCipher& cipher) {
+    try {
+        string base64Text = getBase64InputECB();
+        
+        vector<bitset<16>> cipherBlocks = base64ToBlocks(base64Text);
+        vector<bitset<16>> plainBlocks = cipher.decryptMessage(cipherBlocks);
+        string decryptedText = blocksToString(plainBlocks);
+        
+        displayResult("MENSAJE CIFRADO ECB (BASE64)", base64Text);
+        displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
+        
+    } catch (const exception& e) {
+        cout << "\nError durante el descifrado ECB: " << e.what() << endl;
+    }
 }
 
-int main() {    
+// Procesar cifrado CBC
+void processCBCEncryption(CBCCipher& cipher) {
     try {
-        cout << "=== CIFRADOR SP-NETWORK ===" << "\n";
+        string plaintext = getTextInput("\nIngrese el mensaje a cifrar: ");
         
-        SimpleCipher cipher;
+        if (plaintext.empty()) {
+            cout << "\nError: El mensaje no puede estar vacio." << endl;
+            return;
+        }
+        
+        vector<bitset<16>> textBlocks = stringToBlocks(plaintext);
+        auto [iv, cipherBlocks] = cipher.encryptCBC(textBlocks);
+        string base64Result = cbcToBase64(iv, cipherBlocks);
+        
+        displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
+        displayResult("IV GENERADO", bitsetToHex(iv));
+        displayResult("MENSAJE CIFRADO CBC (BASE64)", base64Result);
+        
+    } catch (const exception& e) {
+        cout << "\nError durante el cifrado CBC: " << e.what() << endl;
+    }
+}
 
+// Procesar descifrado CBC
+void processCBCDecryption(CBCCipher& cipher) {
+    try {
+        string base64Text = getBase64InputCBC();
+        
+        auto [iv, cipherBlocks] = base64ToCBC(base64Text);
+        vector<bitset<16>> plainBlocks = cipher.decryptCBC(iv, cipherBlocks);
+        string decryptedText = blocksToString(plainBlocks);
+        
+        displayResult("MENSAJE CIFRADO CBC (BASE64)", base64Text);
+        displayResult("IV EXTRAIDO", bitsetToHex(iv));
+        displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
+        
+    } catch (const exception& e) {
+        cout << "\nError durante el descifrado CBC: " << e.what() << endl;
+    }
+}
+
+int main() {
+    try {
+        SimpleCipher ecbCipher;
+        CBCCipher cbcCipher;
+        string mainChoice, opChoice;
+        
         while (true) {
-            cout << "\n=== MENÚ ===" << "\n";
-            cout << "1. Cifrar" << "\n";
-            cout << "2. Descifrar" << "\n";
-            cout << "3. Salir" << "\n";
-            cout << "\nOpción: ";
+            showMainMenu();
+            cin >> mainChoice;
             
-            string choice;
-            cin >> choice;
-            
-            if (choice == "1") {
-                vector<bitset<16>> plaintext = getUserTextMessage();
-                if (plaintext.empty()) continue;
-                
-                displayTextMessage(plaintext, "MENSAJE ORIGINAL");
-                vector<bitset<16>> ciphertext = cipher.encryptMessage(plaintext);
-                
-                cout << "\n=== MENSAJE CIFRADO (BASE64) ===" << "\n";
-                string base64Result = blocksToBase64(ciphertext);
-                cout << base64Result << "\n";
-                
-            } else if (choice == "2") {
-                vector<bitset<16>> ciphertext = getUserBase64Message();
-                if (ciphertext.empty()) continue;
-                
-                cout << "\n=== MENSAJE CIFRADO ===" << "\n";
-                string cipherResult = blocksToString(ciphertext);
-                cout << "\"" << cipherResult << "\"" << "\n";
-                
-                vector<bitset<16>> plaintext = cipher.decryptMessage(ciphertext);
-                
-                cout << "\n=== MENSAJE DESCIFRADO ===" << "\n";
-                string decryptedText = blocksToString(plaintext);
-                cout << "\"" << decryptedText << "\"" << "\n";
-                
-            } else if (choice == "3") {
-                cout << "\nSaliendo..." << "\n";
+            if (mainChoice == "1") {
+                // Modo ECB
+                while (true) {
+                    showOperationMenu("ECB");
+                    cin >> opChoice;
+                    
+                    if (opChoice == "1") {
+                        processECBEncryption(ecbCipher);
+                    } 
+                    else if (opChoice == "2") {
+                        processECBDecryption(ecbCipher);
+                    } 
+                    else if (opChoice == "3") {
+                        break;
+                    } 
+                    else {
+                        cout << "\nOpcion invalida. Por favor, seleccione 1, 2 o 3." << endl;
+                    }
+                }
+            } 
+            else if (mainChoice == "2") {
+                // Modo CBC
+                while (true) {
+                    showOperationMenu("CBC");
+                    cin >> opChoice;
+                    
+                    if (opChoice == "1") {
+                        processCBCEncryption(cbcCipher);
+                    } 
+                    else if (opChoice == "2") {
+                        processCBCDecryption(cbcCipher);
+                    } 
+                    else if (opChoice == "3") {
+                        break;
+                    } 
+                    else {
+                        cout << "\nOpcion invalida. Por favor, seleccione 1, 2 o 3." << endl;
+                    }
+                }
+            } 
+            else if (mainChoice == "3") {
+                cout << "\nSaliendo del programa..." << endl;
                 break;
-                
-            } else {
-                cout << "\nOpción inválida." << "\n";
+            } 
+            else {
+                cout << "\nOpcion invalida. Por favor, seleccione 1, 2 o 3." << endl;
             }
         }
         
     } catch (const exception& e) {
-        cout << "Error: " << e.what() << "\n";
+        cout << "\nError critico: " << e.what() << endl;
         return 1;
     }
     

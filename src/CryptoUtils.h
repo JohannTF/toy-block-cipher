@@ -1,3 +1,6 @@
+#ifndef CRYPTOUTILS_H
+#define CRYPTOUTILS_H
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -51,3 +54,5 @@ public:
         return bits;
     }    
 };
+
+#endif
