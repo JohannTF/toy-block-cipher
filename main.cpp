@@ -2,16 +2,19 @@
 #include <string>
 #include <vector>
 #include <bitset>
-#include "utils/CryptoUtils.h"
-#include "utils/InputUtils.h"
-#include "utils/UIUtils.h"
-#include "modes/SimpleCipher.cpp"
-#include "modes/CBCCipher.cpp"
+#include <iomanip>
+#include <algorithm>
+#include <sstream>
+#include "src/utils/CryptoUtils.h"
+#include "src/utils/InputUtils.h"
+#include "src/utils/UIUtils.h"
+#include "src/modes/SimpleCipher.cpp"
+#include "src/modes/CBCCipher.cpp"
+#include "src/modes/CTRCipher.cpp"
 
 using namespace std;
 
-// ========== OPERACIONES ECB ==========
-
+// Procesar cifrado ECB
 void processECBEncryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
@@ -39,6 +42,7 @@ void processECBEncryption() {
     }
 }
 
+// Procesar descifrado ECB
 void processECBDecryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
@@ -62,8 +66,7 @@ void processECBDecryption() {
     }
 }
 
-// ========== OPERACIONES CBC ==========
-
+// Procesar cifrado CBC
 void processCBCEncryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
@@ -93,6 +96,7 @@ void processCBCEncryption() {
     }
 }
 
+// Procesar descifrado CBC
 void processCBCDecryption() {
     try {
         cin.ignore(); // Limpiar buffer después de leer opción del menú
@@ -116,6 +120,63 @@ void processCBCDecryption() {
         
     } catch (const exception& e) {
         UIUtils::showError("el descifrado CBC", e.what());
+    }
+}
+
+//Procesar cifrado CTR
+void processCTREncryption() {
+    try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
+        string plaintext = InputUtils::getTextInput("\nIngrese el mensaje a cifrar: ");
+        
+        if (plaintext.empty()) {
+            UIUtils::showSimpleError("El mensaje no puede estar vacio.");
+            return;
+        }
+
+        // Crear nueva instancia para generar clave aleatoria fresca
+        CTRCipher cipher;
+        
+        vector<bitset<16>> textBlocks = CryptoUtils::stringToBlocks(plaintext);
+        auto [iv, cipherBlocks] = cipher.encryptCTR(textBlocks);
+        string base64Result = CryptoUtils::blocksToBase64(cipherBlocks);
+        string masterKeyBase64 = cipher.getMasterKeyBase64();
+        string ivBase64 = CryptoUtils::bitsetToBase648(iv);
+        
+        UIUtils::displayResult("MENSAJE ORIGINAL", "\"" + plaintext + "\"");
+        UIUtils::displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
+        UIUtils::displayResult("IV GENERADO (BASE64)", ivBase64);
+        UIUtils::displayResult("MENSAJE CIFRADO CTR (BASE64)", base64Result);
+        
+    } catch (const exception& e) {
+        UIUtils::showError("el cifrado CTR", e.what());
+    }
+}
+
+// Procesar descifrado CTR
+void processCTRDecryption() {
+    try {
+        cin.ignore(); // Limpiar buffer después de leer opción del menú
+        string masterKeyBase64 = InputUtils::getMasterKeyInput();
+        bitset<8> iv = InputUtils::getIVInputCTR();
+        string base64Text = InputUtils::getBase64InputCTR();
+
+        // Crear cipher con la clave proporcionada
+        CTRCipher cipher;
+        cipher.setMasterKeyFromBase64(masterKeyBase64);
+
+        vector<bitset<16>> cipherBlocks = CryptoUtils::base64ToBlocks(base64Text);
+        vector<bitset<16>> plainBlocks = cipher.decryptCTR(iv, cipherBlocks);        
+        string decryptedText = CryptoUtils::blocksToString(plainBlocks);
+        string ivBase64 = CryptoUtils::bitsetToBase648(iv);
+        
+        UIUtils::displayResult("CLAVE MAESTRA (BASE64)", masterKeyBase64);
+        UIUtils::displayResult("IV UTILIZADO (BASE64)", ivBase64);
+        UIUtils::displayResult("MENSAJE CIFRADO CTR (BASE64)", base64Text);
+        UIUtils::displayResult("MENSAJE DESCIFRADO", "\"" + decryptedText + "\"");
+
+    } catch (const exception& e) {
+        UIUtils::showError("el descifrado CTR", e.what());
     }
 }
 
@@ -161,6 +222,26 @@ void handleCBCMenu() {
     }
 }
 
+void handleCTRMenu() {
+    string opChoice;
+    while (true) {
+        UIUtils::showOperationMenu("CTR");
+        cin >> opChoice;
+        if (opChoice == "1") {
+            processCTREncryption();
+        } 
+        else if (opChoice == "2") {
+            processCTRDecryption();
+        } 
+        else if (opChoice == "3") {
+            break;
+        } 
+        else {
+            UIUtils::showSimpleError("Opcion invalida. Por favor, seleccione 1, 2 o 3.");
+        }
+    }
+}
+
 int main() {
     try {
         string mainChoice;
@@ -170,14 +251,15 @@ int main() {
             cin >> mainChoice;
             
             if (mainChoice == "1") {
-                // Modo ECB
                 handleECBMenu();
             } 
             else if (mainChoice == "2") {
-                // Modo CBC
                 handleCBCMenu();
             } 
             else if (mainChoice == "3") {
+                handleCTRMenu();
+            }
+            else if (mainChoice == "4") {
                 cout << "\nSaliendo del programa..." << endl;
                 break;
             } 

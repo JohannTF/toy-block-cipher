@@ -24,6 +24,15 @@ public:
         return bits;
     }
 
+    // Convert unsigned int to 8-bit bitset
+    static bitset<8> convertToBitset8Bits(unsigned int a) {
+        bitset<8> bits;
+        for (int i = 0; i < 8; ++i) {
+            bits[i] = (a >> i) & 1;
+        }
+        return bits;
+    }
+
     // Separate 4 bits from a 16-bit bitset starting at position 'start'
     static bitset<4> separateBits(const bitset<16>& bits, int start) {
         bitset<4> result;
@@ -54,6 +63,16 @@ public:
             pos += 4;
         }
         return bits;
+    }
+
+    static bitset<16> counterGenerator(const bitset<8>& iv, unsigned int counter) {
+        // Combine IV with counter to generate a new 16-bit value
+        unsigned int combined = (iv.to_ulong() << 8) | (counter & 0xFF);
+        bitset<16> result;
+        for (int i = 0; i < 16; ++i) {
+            result[i] = (combined >> i) & 1;
+        }
+        return result;
     }
 
     // ========== FUNCIONES DE CONVERSIÓN ==========
@@ -142,6 +161,24 @@ public:
         return base64_encode(binaryData);
     }
 
+    // Convertir bitset de 8 bits a Base64
+    static string bitsetToBase648(const bitset<8>& bits) {
+        unsigned char byte = static_cast<unsigned char>(bits.to_ulong());
+        string binaryData(1, byte);
+        return base64_encode(binaryData);
+    }
+
+    // Convertir Base64 a bitset de 8 bits
+    static bitset<8> base64ToBitset8(const string& base64Data) {
+        string decodedData = base64_decode(base64Data);
+        
+        if (decodedData.length() < 1) {
+            throw invalid_argument("Base64 invalido: datos insuficientes");
+        }
+        
+        return bitset<8>(static_cast<unsigned char>(decodedData[0]));
+    }
+
     // Convertir Base64 a bitset
     static bitset<16> base64ToBitset(const string& base64Data) {
         string decodedData = base64_decode(base64Data);
@@ -160,6 +197,13 @@ public:
     static string bitsetToHex(const bitset<16>& bits) {
         stringstream ss;
         ss << "0x" << hex << uppercase << setfill('0') << setw(4) << bits.to_ulong();
+        return ss.str();
+    }
+
+    //Convertir bitset de 8 bits a hexadecimal
+    static string bitsetToHex8(const bitset<8>& bits) {
+        stringstream ss;
+        ss << "0x" << hex << uppercase << setfill('0') << setw(2) << bits.to_ulong();
         return ss.str();
     }
 
@@ -200,6 +244,51 @@ public:
         // Extraer bloques restantes
         vector<bitset<16>> blocks;
         for (size_t i = 2; i < decodedData.length(); i += 2) {
+            uint16_t blockValue = 0;
+            
+            blockValue |= (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i])) << 8);
+            
+            if (i + 1 < decodedData.length()) {
+                blockValue |= static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i + 1]));
+            }
+            
+            blocks.push_back(bitset<16>(blockValue));
+        }
+        
+        return {iv, blocks};
+    }
+
+    // Convertir IV y bloques a Base64 (para CTR)
+    static string ctrToBase64(const bitset<8>& iv, const vector<bitset<16>>& blocks) {
+        string binaryData;
+        
+        // Agregar IV al inicio
+        binaryData += static_cast<char>(iv.to_ulong());
+        
+        // Agregar bloques cifrados
+        for (const auto& block : blocks) {
+            uint16_t value = static_cast<uint16_t>(block.to_ulong());
+            binaryData += static_cast<char>((value >> 8) & 0xFF);
+            binaryData += static_cast<char>(value & 0xFF);
+        }
+        
+        return base64_encode(binaryData);
+    }
+
+    // Convertir Base64 a IV y bloques (para CTR)
+    static pair<bitset<8>, vector<bitset<16>>> base64ToCTR(const string& base64Data) {
+        string decodedData = base64_decode(base64Data);
+        
+        if (decodedData.length() < 1) {
+            throw invalid_argument("Datos insuficientes para extraer IV");
+        }
+        
+        // Extraer IV (primer byte)
+        bitset<8> iv(static_cast<unsigned char>(decodedData[0]));
+        
+        // Extraer bloques restantes
+        vector<bitset<16>> blocks;
+        for (size_t i = 1; i < decodedData.length(); i += 2) {
             uint16_t blockValue = 0;
             
             blockValue |= (static_cast<uint16_t>(static_cast<unsigned char>(decodedData[i])) << 8);

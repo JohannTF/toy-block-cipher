@@ -22,7 +22,8 @@ public:
         cout << "========================================" << endl;
         cout << "1. Modo ECB (Electronic Codebook)" << endl;
         cout << "2. Modo CBC (Cipher Block Chaining)" << endl;
-        cout << "3. Salir" << endl;
+        cout << "3. Modo CTR (Counter)" << endl;
+        cout << "4. Salir" << endl;
         cout << "----------------------------------------" << endl;
         cout << "Seleccione el modo de operacion: ";
     }

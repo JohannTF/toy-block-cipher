@@ -53,6 +53,17 @@ public:
         return base64Text;
     }
 
+    //Validar y obtener entrada Base64 para CTR
+    static string getBase64InputCTR() {
+        string base64Text = getTextInput("\nIngrese el mensaje cifrado en Base64 (CTR): ");
+        
+        if (base64Text.empty()) {
+            throw invalid_argument("El mensaje no puede estar vacio");
+        }
+        
+        return base64Text;
+    }
+
     // Obtener IV del usuario para descifrado CBC
     static bitset<16> getIVInput() {
         string ivText = getTextInput("\nIngrese el vector de inicializacion (IV) en Base64: ");
@@ -63,6 +74,21 @@ public:
         
         try {
             return CryptoUtils::base64ToBitset(ivText);
+        } catch (const exception& e) {
+            throw invalid_argument("Formato de IV invalido. Use formato Base64 valido");
+        }
+    }
+
+    // Obtener IV de 8 bits del usuario para descifrado CTR
+    static bitset<8> getIVInputCTR() {
+        string ivText = getTextInput("\nIngrese el vector de inicializacion (IV) en Base64: ");
+        
+        if (ivText.empty()) {
+            throw invalid_argument("El IV no puede estar vacio");
+        }
+        
+        try {
+            return CryptoUtils::base64ToBitset8(ivText);
         } catch (const exception& e) {
             throw invalid_argument("Formato de IV invalido. Use formato Base64 valido");
         }
