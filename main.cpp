@@ -264,7 +264,7 @@ int main() {
                 break;
             } 
             else {
-                UIUtils::showSimpleError("Opcion invalida. Por favor, seleccione 1, 2 o 3.");
+                UIUtils::showSimpleError("Opcion invalida. Por favor, seleccione una opción valida.");
             }
         }
         
